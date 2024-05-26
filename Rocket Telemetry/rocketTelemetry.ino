@@ -1,11 +1,16 @@
 #include <Wire.h>  // Wire library - used for I2C communication
+#include <SoftwareSerial.h>
 
-int ADXL345 = 0x53;  // The ADXL345 sensor I2C address
+SoftwareSerial HC12(10,11);
+
+#define ADXL345 0x53  // The ADXL345 sensor I2C address
+
 
 float X_out, Y_out, Z_out, rollF, pitchF;  // Outputs
 
 void setup() {
   Serial.begin(9600);  // Initiate serial communication for printing the results on the Serial monitor
+  HC12.begin(9600);
   Wire.begin();        // Initiate the Wire library
   // Set ADXL345 in measuring mode
   Wire.beginTransmission(ADXL345);  // Start communicating with the device
@@ -18,22 +23,31 @@ void setup() {
   //X-axis
   Wire.beginTransmission(ADXL345);
   Wire.write(0x1E);  // X-axis offset register
-  Wire.write(-3);
+  Wire.write(-2);
   Wire.endTransmission();
   delay(10);
   //Y-axis
   Wire.beginTransmission(ADXL345);
   Wire.write(0x1F);  // Y-axis offset register
-  Wire.write(3);
+  Wire.write(-2);
   Wire.endTransmission();
   delay(10);
 
   //Z-axis
   Wire.beginTransmission(ADXL345);
   Wire.write(0x20);  // Z-axis offset register
-  Wire.write(0);
+  Wire.write(5);
   Wire.endTransmission();
   delay(10);
+
+  Wire.beginTransmission(ADXL345);
+  Wire.write(0x31);
+  Wire.endTransmission();
+
+  Wire.beginTransmission(ADXL345);
+  Wire.write(0x31);
+  Wire.write(1 << 1);
+  Wire.endTransmission();
 }
 
 void loop() {
@@ -45,9 +59,12 @@ void loop() {
   X_out = (Wire.read() | Wire.read() << 8);  // X-axis value
   Y_out = (Wire.read() | Wire.read() << 8);  // Y-axis value
   Z_out = (Wire.read() | Wire.read() << 8);  // Z-axis value
-  X_out = X_out / 256;                       //For a range of +-2g, we need to divide the raw values by 256, according to the datasheet
-  Z_out = Z_out / 256;
-  Y_out = Y_out / 256;
+  X_out = X_out / 64;                       //For a range of +-2g, we need to divide the raw values by 256, according to the datasheet
+  Z_out = Z_out / 64;
+  Y_out = Y_out / 64;
+  // X_out = X_out;                       //For a range of +-2g, we need to divide the raw values by 256, according to the datasheet
+  // Z_out = Z_out;
+  // Y_out = Y_out;
 
   // Serial.print("Xa= ");
   // Serial.print(X_out);
@@ -56,18 +73,32 @@ void loop() {
   // Serial.print("   Za= ");
   // Serial.println(Z_out);
 
-  // Calculate Roll and Pitch (rotation around X-axis, rotation around Y-axis)
   float roll = atan(Y_out / sqrt(pow(X_out, 2) + pow(Z_out, 2))) * 180 / PI;
   float pitch = atan(-1 * X_out / sqrt(pow(Y_out, 2) + pow(Z_out, 2))) * 180 / PI;
 
-  // Low-pass filter
+  //Low-pass filter
   rollF = 0.94 * rollF + 0.06 * roll;
   pitchF = 0.94 * pitchF + 0.06 * pitch;
 
-  Serial.print(rollF);
-  Serial.print("/");
-  Serial.print(pitchF);
-  Serial.print("/");
-  Serial.println(Z_out);
+  float acceleration = sqrt(pow(X_out, 2) + pow(Y_out, 2) + pow(Z_out, 2)) - 1;
+
+  if (Z_out < 0) acceleration = -acceleration;
+
+  //HC12.println(String(rollF) + "/" + String(pitchF) + "/" + String(Z_out));
+
+  HC12.print(rollF);
+  HC12.print("/");
+  HC12.print(pitchF);
+  HC12.print("/");
+  HC12.println(acceleration);
+
+
+  // Serial.print(rollF);
+  // Serial.print("/");
+  // Serial.print(pitchF);
+  // Serial.print("/");
+  // Serial.println(Z_out);
+
+  //Serial.println(String(X_out) + "/" + String(Y_out) + "/" + String(Z_out));
 
 }
